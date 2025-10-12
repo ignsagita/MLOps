@@ -1,0 +1,204 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  train-and-test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Set random seed for reproducibility
+      run: |
+        python -c "import random; import numpy as np; random.seed(42); np.random.seed(42); print('Seeds set')"
+
+    - name: Train model
+      run: |
+        python train.py
+
+    - name: Verify model artifacts
+      run: |
+        ls -la model.pkl metrics.json training_info.json
+
+    - name: Upload model artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: model-artifacts
+        path: |
+          model.pkl
+          metrics.json
+          training_info.json
+
+  build-and-test:
+    runs-on: ubuntu-latest
+    needs: train-and-test
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Download model artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: model-artifacts
+
+    - name: Verify artifacts
+      run: |
+        ls -la model.pkl metrics.json training_info.json
+
+    - name: Create Dockerfile
+      run: |
+        cat > Dockerfile << 'EOF'
+        FROM python:3.9-slim
+
+        # Set working directory
+        WORKDIR /app
+
+        # Install system dependencies
+        RUN apt-get update && apt-get install -y \
+            gcc \
+            && rm -rf /var/lib/apt/lists/*
+
+        # Copy requirements first for better caching
+        COPY requirements.txt .
+
+        # Install Python dependencies
+        RUN pip install --no-cache-dir -r requirements.txt
+
+        # Copy model artifacts and application code
+        COPY model.pkl .
+        COPY metrics.json .
+        COPY training_info.json .
+        COPY api.py .
+
+        # Create non-root user
+        RUN useradd --create-home --shell /bin/bash app \
+            && chown -R app:app /app
+        USER app
+
+        # Expose port
+        EXPOSE 8080
+
+        # Health check
+        HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+            CMD python -c "import requests; requests.get('http://localhost:8080/health').raise_for_status()"
+
+        # Run the application
+        CMD ["python", "api.py"]
+        EOF
+
+    - name: Build Docker image
+      run: |
+        docker build -t diabetes-triage:${{ github.ref_name }} .
+
+    - name: Test Docker image
+      run: |
+        # Run container in background
+        docker run -d --name test-container -p 8080:8080 diabetes-triage:${{ github.ref_name }}
+
+        # Wait for container to be ready
+        sleep 10
+
+        # Test health endpoint
+        curl -f http://localhost:8080/health
+
+        # Test predict endpoint
+        curl -X POST http://localhost:8080/predict \
+          -H "Content-Type: application/json" \
+          -d '{"age": 0.02, "sex": -0.044, "bmi": 0.06, "bp": -0.03, "s1": -0.02, "s2": 0.03, "s3": -0.02, "s4": 0.02, "s5": 0.02, "s6": -0.001}' \
+          | python -c "import sys, json; response=json.load(sys.stdin); print(f'Prediction: {response[\"prediction\"]}'); assert 'prediction' in response"
+
+        # Test metrics endpoint
+        curl -f http://localhost:8080/metrics
+
+        # Clean up
+        docker stop test-container
+        docker rm test-container
+
+    - name: Login to GitHub Container Registry
+      run: |
+        echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+    - name: Tag and push Docker image
+      run: |
+        # Get repository name and set image name
+        REPO_NAME=$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]')
+        IMAGE_NAME=ghcr.io/${REPO_NAME}:latest
+        TAGGED_IMAGE_NAME=ghcr.io/${REPO_NAME}:${{ github.ref_name }}
+
+        # Tag image
+        docker tag diabetes-triage:${{ github.ref_name }} ${TAGGED_IMAGE_NAME}
+        docker tag diabetes-triage:${{ github.ref_name }} ${IMAGE_NAME}
+
+        # Push image
+        docker push ${TAGGED_IMAGE_NAME}
+        docker push ${IMAGE_NAME}
+
+    - name: Create GitHub Release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref_name }}
+        body: |
+          ## Diabetes Triage API ${{ github.ref_name }}
+
+          ### Model Performance
+          \`\`\`json
+          $(cat metrics.json)
+          \`\`\`
+
+          ### Training Info
+          \`\`\`json
+          $(cat training_info.json)
+          \`\`\`
+
+          ### Usage
+          \`\`\`bash
+          # Pull and run the Docker image
+          docker run -p 8080:8080 ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+
+          # Health check
+          curl http://localhost:8080/health
+
+          # Make prediction
+          curl -X POST http://localhost:8080/predict \
+            -H "Content-Type: application/json" \
+            -d @sample_data.json
+          \`\`\`
+
+          ### Sample Input
+          \`\`\`json
+          {
+            "age": 0.02,
+            "sex": -0.044,
+            "bmi": 0.06,
+            "bp": -0.03,
+            "s1": -0.02,
+            "s2": 0.03,
+            "s3": -0.02,
+            "s4": 0.02,
+            "s5": 0.02,
+            "s6": -0.001
+          }
+          \`\`\`
+        draft: false
+        prerelease: false
+
+    - name: Clean up Docker images
+      run: |
+        # Clean up local images to save space
+        docker rmi diabetes-triage:${{ github.ref_name }} || true
+        docker system prune -f
