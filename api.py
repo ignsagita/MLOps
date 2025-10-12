@@ -58,6 +58,26 @@ print("=" * 60)
 # Create Flask App
 app = Flask(__name__)
 
+# Root endpoint - API information
+@app.route('/', methods=['GET'])
+def home():
+    """
+    Root endpoint providing API information and available endpoints.
+
+    Returns:
+        200: Welcome message with available endpoints
+    """
+    return jsonify({
+        "message": "Diabetes Triage API",
+        "version": "v0.1",
+        "endpoints": {
+            "health": "/health - Service health check",
+            "predict": "POST /predict - Predict diabetes progression",
+            "metrics": "/metrics - Model performance metrics"
+        },
+        "docs": "Send POST requests to /predict with patient features: age, sex, bmi, bp, s1, s2, s3, s4, s5, s6"
+    }), 200
+
 # Step 1: Health Check of the Model
 @app.route('/health', methods=['GET'])
 def health():
@@ -147,4 +167,4 @@ if __name__ == '__main__':
     # host='0.0.0.0' makes it accessible from outside of the container
     # port=5000 is the standard port
     # debug=False in production (no auto-reload, no debug info leakage)
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    app.run(host='0.0.0.0', port=8080, debug=False)

@@ -90,7 +90,7 @@ def save_artifacts(pipeline, metrics):
     training_info = {
         "model_version": "v0.1",
         "model_type": "StandardScaler + LinearRegression",
-        "training_date": datetime.isoformat(),
+        "training_date": datetime.now().isoformat(),
         "random_seed": RSEED,
         "sklearn_version": sklearn.__version__
     }

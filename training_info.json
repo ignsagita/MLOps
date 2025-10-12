@@ -1,0 +1,7 @@
+{
+  "model_version": "v0.1",
+  "model_type": "StandardScaler + LinearRegression",
+  "training_date": "2025-10-10T14:05:38.418792",
+  "random_seed": 42,
+  "sklearn_version": "1.5.2"
+}
