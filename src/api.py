@@ -16,9 +16,9 @@ from flask import Flask, request, jsonify
 
 # Configuration
 
-MODEL_PATH = Path('model.pkl')
-METRICS_PATH = Path('metrics.json')
-TRAINING_INFO_PATH = Path('training_info.json')
+MODEL_PATH = Path('models/model.pkl')
+METRICS_PATH = Path('models/metrics.json')
+TRAINING_INFO_PATH = Path('models/training_info.json')
 
 # Expected feature names (must match sklearn diabetes dataset order)
 EXPECTED_FEATURES = ['age', 'sex', 'bmi', 'bp', 's1', 's2', 's3', 's4', 's5', 's6']

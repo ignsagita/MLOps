@@ -25,9 +25,9 @@ RSEED = 42
 np.random.seed(RSEED)
 
 # Output paths
-MODEL_PATH = Path("model.pkl")
-METRICS_PATH = Path("metrics.json")
-TRAINING_INFO_PATH = Path("training_info.json")
+MODEL_PATH = Path("models/model.pkl")
+METRICS_PATH = Path("models/metrics.json")
+TRAINING_INFO_PATH = Path("models/training_info.json")
 
 
 def load_data():
