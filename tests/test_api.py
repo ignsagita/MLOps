@@ -43,7 +43,20 @@ def test_predict(client):
     assert response.status_code == 200
     assert b"prediction" in response.data
 
-    response = client.post("/predict", json = {"sex": -0.044, "bmi": 0.06, "bp": -0.03, "s1": -0.02, "s2": 0.03, "s3": -0.02, "s4": 0.02, "s5": 0.02, "s6": -0.001})
+    # Missing "age" should return 400 with an error message
+    response = client.post("/predict", json = {
+        "sex": -0.044, "bmi": 0.06, "bp": -0.03,
+        "s1": -0.02, "s2": 0.03, "s3": -0.02,
+        "s4": 0.02, "s5": 0.02, "s6": -0.001
+    })
     assert response.status_code == 400
-    with pytest.raises(KeyError):
-        client.post("/predict", json = {"name": 0.02, "sex": -0.044, "bmi": 0.06, "bp": -0.03, "s1": -0.02, "s2": 0.03, "s3": -0.02, "s4": 0.02, "s5": 0.02, "s6": -0.001})
+    assert b"Missing required fields" in response.data
+
+    # Invalid field name should also return 400, not raise a KeyError
+    response = client.post("/predict", json = {
+        "name": 0.02, "sex": -0.044, "bmi": 0.06, "bp": -0.03,
+        "s1": -0.02, "s2": 0.03, "s3": -0.02,
+        "s4": 0.02, "s5": 0.02, "s6": -0.001
+    })
+    assert response.status_code == 400
+    assert b"Missing required fields" in response.data
