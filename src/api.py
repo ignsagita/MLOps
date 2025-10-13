@@ -7,6 +7,7 @@ Endpoints:
 
 import json
 from pathlib import Path
+import pandas as pd
 
 import joblib
 import numpy as np
@@ -15,16 +16,16 @@ from flask import Flask, request, jsonify
 
 # Configuration
 
-MODEL_PATH = Path("model.pkl")
-METRICS_PATH = Path("metrics.json")
-TRAINING_INFO_PATH = Path("training_info.json")
+MODEL_PATH = Path('model.pkl')
+METRICS_PATH = Path('metrics.json')
+TRAINING_INFO_PATH = Path('training_info.json')
 
 # Expected feature names (must match sklearn diabetes dataset order)
-EXPECTED_FEATURES = ["age", "sex", "bmi", "bp", "s1", "s2", "s3", "s4", "s5", "s6"]
+EXPECTED_FEATURES = ['age', 'sex', 'bmi', 'bp', 's1', 's2', 's3', 's4', 's5', 's6']
 
 # API Setup
-print("DIABETES TRIAGE API - STARTING UP")
-print("=" * 60)
+print('DIABETES TRIAGE API - STARTING UP')
+print('=' * 60)
 
 # Load the trained pipeline
 if not MODEL_PATH.exists():
@@ -39,8 +40,8 @@ if METRICS_PATH.exists():
         model_metrics = json.load(f)
     print(f"Metrics loaded: RMSE={model_metrics['rmse']:.2f}")
 else:
-    model_metrics = {"error": "Metrics file not found"}
-    print("Warning! metrics.json not found")
+    model_metrics = {'error': 'Metrics file not found'}
+    print('Warning! metrics.json not found')
 
 # Load training info (for /health endpoint)
 if TRAINING_INFO_PATH.exists():
@@ -48,8 +49,8 @@ if TRAINING_INFO_PATH.exists():
         training_info = json.load(f)
     print(f"Training info loaded: {training_info['model_version']}")
 else:
-    training_info = {"model_version": "unknown"}
-    print("Warning! training_info.json not found")
+    training_info = {'model_version': 'unknown'}
+    print('Warning! training_info.json not found')
 
 print("=" * 60)
 print("API READY - Listening on port 5000")
@@ -57,26 +58,6 @@ print("=" * 60)
 
 # Create Flask App
 app = Flask(__name__)
-
-# Root endpoint - API information
-@app.route('/', methods=['GET'])
-def home():
-    """
-    Root endpoint providing API information and available endpoints.
-
-    Returns:
-        200: Welcome message with available endpoints
-    """
-    return jsonify({
-        "message": "Diabetes Triage API",
-        "version": "v0.1",
-        "endpoints": {
-            "health": "/health - Service health check",
-            "predict": "POST /predict - Predict diabetes progression",
-            "metrics": "/metrics - Model performance metrics"
-        },
-        "docs": "Send POST requests to /predict with patient features: age, sex, bmi, bp, s1, s2, s3, s4, s5, s6"
-    }), 200
 
 # Step 1: Health Check of the Model
 @app.route('/health', methods=['GET'])
@@ -89,9 +70,9 @@ def health():
         Example: {"status": "ok", "model_version": "v0.1"}
     """
     return jsonify({
-        "status": "ok",
-        "model_version": training_info.get("model_version", "unknown"),
-        "model_type": training_info.get("model_type", "unknown")
+        'status': 'ok',
+        'model_version': training_info.get('model_version', 'unknown'),
+        'model_type': training_info.get('model_type', 'unknown')
     }), 200
 
 
@@ -111,7 +92,7 @@ def predict():
         data = request.get_json()
         
         if data is None:
-            return jsonify({"error": "Request body must be JSON"}), 400
+            return jsonify({'error': 'Request body must be JSON'}), 400
         
         # 2. Validate if all required features are present
         missing_features = [f for f in EXPECTED_FEATURES if f not in data]
@@ -123,13 +104,13 @@ def predict():
         # 3. Extract features in the correct order (as seen in the training)
         features = [data[f] for f in EXPECTED_FEATURES]
         
-        # 4. Convert to numpy array (shape: 1 row, 10 columns)
-        X = np.array(features).reshape(1, -1)
+        # 4. Convert to pandas DataFrame with feature names
+        X = pd.DataFrame([features], columns=EXPECTED_FEATURES)
         
         # 5. Validate feature types (should be numeric)
         if not np.isfinite(X).all():
             return jsonify({
-                "error": "All features must be finite numbers (no NaN/Inf)"
+                'error': 'All features must be finite numbers (no NaN/Inf)'
             }), 400
         
         # 6. Make prediction
@@ -137,12 +118,8 @@ def predict():
         
         # 7. Return result
         return jsonify({
-            "prediction": float(prediction)
+            'prediction': float(prediction)
         }), 200
-    
-    except KeyError as e:
-        # Fail-safe mechanisms + explaining the error
-        return jsonify({"error": f"Invalid feature name: {str(e)}"}), 400
     
     except Exception as e:
         # Fail-safe mechanisms + explaining the error
@@ -167,4 +144,4 @@ if __name__ == '__main__':
     # host='0.0.0.0' makes it accessible from outside of the container
     # port=5000 is the standard port
     # debug=False in production (no auto-reload, no debug info leakage)
-    app.run(host='0.0.0.0', port=8080, debug=False)
+    app.run(host='0.0.0.0', port=5000, debug=False)
