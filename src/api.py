@@ -108,7 +108,7 @@ def predict():
         X = pd.DataFrame([features], columns=EXPECTED_FEATURES)
         
         # 5. Validate feature types (should be numeric)
-        if not np.isfinite(X).all():
+        if not np.isfinite(X.values).all():
             return jsonify({
                 'error': 'All features must be finite numbers (no NaN/Inf)'
             }), 400
